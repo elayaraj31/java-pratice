@@ -1,0 +1,123 @@
+5. Leap Year Puzzle
+
+public class LeapYear {
+    public static void main(String[] args) {
+        int year = 2000;
+        
+        if(year % 400 == 0) {
+            System.out.println("Leap year");
+        }
+        else if(year % 100 == 0) {
+            System.out.println("Not leap year");
+        }
+        else if(year % 4 == 0) {
+            System.out.println("Leap year");
+        }
+        else {
+            System.out.println("Not leap year");
+        }
+    }
+}
+ Output:
+Leap year
+
+6. Number Range Puzzle
+
+public class NumberRange {
+    public static void main(String[] args) {
+        int num = 25;
+        
+        if(num >= 0 && num <= 25) {
+            System.out.println("Range 1");
+        }
+        else if(num > 25 && num <= 50) {
+            System.out.println("Range 2");
+        }
+        else if(num > 50 && num <= 75) {
+            System.out.println("Range 3");
+        }
+        else {
+            System.out.println("Out of range");
+        }
+    }
+}
+Output:
+Range 1
+
+7. Number Comparison Puzzle
+ 
+public class NumberComparison {
+    public static void main(String[] args) {
+        int x = 10, y = 10, z = 5;
+        
+        if(x > y && x > z) {
+            System.out.println("X is largest");
+        }
+        else if(y > x && y > z) {
+            System.out.println("Y is largest");
+        }
+        else if(z > x && z > y) {
+            System.out.println("Z is largest");
+        }
+        else {
+            System.out.println("Numbers are equal");
+        }
+    }
+}
+Output:
+Numbers are equal
+
+8. Grade Calculator Puzzle
+
+public class GradeCalculator {
+    public static void main(String[] args) {
+        int score = 89;
+        
+        if(score >= 90) {
+            System.out.println("A");
+        }
+        else if(score >= 80) {
+            System.out.println("B");
+        }
+        else if(score >= 70) {
+            System.out.println("C");
+        }
+        else if(score >= 60) {
+            System.out.println("D");
+        }
+        else {
+            System.out.println("F");
+        }
+    }
+}
+Output:
+B
+
+9. Number Sign Puzzle
+ 
+public class NumberSign {
+    public static void main(String[] args) {
+        int num = -0;
+        
+        if(num > 0) {
+            System.out.println("Positive");
+        }
+        else if(num < 0) {
+            System.out.println("Negative");
+        }
+        else {
+            System.out.println("Zero");
+        }
+    }
+}
+Output:
+Zero
+
+
+
+
+
+
+
+
+
