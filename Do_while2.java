@@ -11,8 +11,8 @@ System.out.println(no);
 }
 }
 
-OUTPUT:
+/*OUTPUT:
 1
 3
 5
-
+*/
