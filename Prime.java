@@ -2,7 +2,7 @@ public class Prime
 {
     public static void main(String[] args)
     {
-        int no = 9;
+        int no = 3;
         int div = 2;
 
         if (no % div == 0) {
