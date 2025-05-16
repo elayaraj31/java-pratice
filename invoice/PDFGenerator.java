@@ -69,15 +69,15 @@ public class PDFGenerator {
             // Header
             Paragraph header = new Paragraph("FEES INVOICE")
                     .setFont(boldFont)
-                    .setFontSize(14)
+                    .setFontSize(25)
                     .setTextAlignment(TextAlignment.CENTER);
             document.add(header);
 
             // Image
             if (imagePath != null) {
                 Image image = new Image(ImageDataFactory.create(imagePath));
-                image.setWidth(200);
-                image.setHorizontalAlignment(com.itextpdf.layout.properties.HorizontalAlignment.CENTER);
+                image.setWidth(100);
+                image.setHorizontalAlignment(com.itextpdf.layout.properties.HorizontalAlignment.LEFT);
                 document.add(image);
             }
 
