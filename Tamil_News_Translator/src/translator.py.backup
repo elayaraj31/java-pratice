@@ -1,0 +1,254 @@
+
+import time
+from typing import Optional, List
+try:
+    import asyncio
+except ImportError:
+    asyncio = None
+
+from googletrans import Translator
+import requests
+
+from config import TRANSLATION_CONFIG, RATE_LIMIT_CONFIG, PROCESSING_LIMITS
+from error_handler import ErrorHandler, TranslationErrorHandler, handle_exceptions, rate_limit
+from news_fetcher import NewsArticle
+
+
+class TamilTranslator:
+    """Translates text from English to Tamil using Google Translate API"""
+    
+    def __init__(self):
+        self.error_handler = ErrorHandler()
+        self.translation_error_handler = TranslationErrorHandler(self.error_handler)
+        
+        # Initialize Google Translator with custom service URLs
+        self.translator = Translator(
+            service_urls=TRANSLATION_CONFIG["service_urls"]
+        )
+        
+        # Translation cache to avoid duplicate translations
+        self.translation_cache = {}
+    
+    @handle_exceptions("translate_text")
+    @rate_limit(calls_per_minute=20)  # Conservative rate limiting for translation
+    def translate_text(self, text: str, max_retries: int = 3) -> Optional[str]:
+        """Translate text from English to Tamil"""
+        if not text or not text.strip():
+            return None
+        
+        # Check cache first
+        text_key = text[:100]  # Use first 100 chars as key
+        if text_key in self.translation_cache:
+            self.error_handler.log_info("Using cached translation", "translate_text")
+            return self.translation_cache[text_key]
+        
+        # Split text if it's too long
+        if len(text) > PROCESSING_LIMITS["max_article_length"]:
+            return self._translate_long_text(text, max_retries)
+        
+        for attempt in range(max_retries):
+            try:
+                self.error_handler.log_info(f"Translating text (attempt {attempt + 1})", "translate_text")
+                
+                # Perform translation
+                result = self.translator.translate(
+                    text, 
+                    src=TRANSLATION_CONFIG["source_language"],
+                    dest=TRANSLATION_CONFIG["target_language"]
+                )
+                
+                if result and result.text:
+                    translated_text = result.text
+                    
+                    # Cache the translation
+                    self.translation_cache[text_key] = translated_text
+                    
+                    self.error_handler.log_info("Translation successful", "translate_text")
+                    
+                    # Add delay to respect rate limits
+                    time.sleep(RATE_LIMIT_CONFIG["translation_delay"])
+                    
+                    return translated_text
+                else:
+                    self.error_handler.log_warning("Translation returned empty result", "translate_text")
+                    
+            except Exception as e:
+                self.error_handler.log_error(e, f"translate_text attempt {attempt + 1}")
+                
+                # Handle specific translation errors
+                handled_result = self.translation_error_handler.handle_translation_error(e, text, attempt + 1)
+                if handled_result is None and attempt < max_retries - 1:
+                    # Wait before retry
+                    wait_time = RATE_LIMIT_CONFIG["translation_delay"] * (attempt + 1)
+                    time.sleep(wait_time)
+                    continue
+        
+        return None
+    
+    @handle_exceptions("_translate_long_text")
+    def _translate_long_text(self, text: str, max_retries: int = 3) -> Optional[str]:
+        """Translate long text by splitting into chunks"""
+        try:
+            self.error_handler.log_info(f"Translating long text ({len(text)} chars)", "_translate_long_text")
+            
+            # Split text into sentences for better context
+            sentences = self._split_into_sentences(text)
+            translated_chunks = []
+            
+            current_chunk = ""
+            
+            for sentence in sentences:
+                # Check if adding this sentence would exceed chunk size
+                if len(current_chunk) + len(sentence) > PROCESSING_LIMITS["chunk_size"]:
+                    if current_chunk:
+                        # Translate current chunk
+                        translated_chunk = self.translate_text(current_chunk.strip(), max_retries)
+                        if translated_chunk:
+                            translated_chunks.append(translated_chunk)
+                        
+                        # Add delay between chunks
+                        time.sleep(RATE_LIMIT_CONFIG["translation_delay"] * 2)
+                    
+                    current_chunk = sentence
+                else:
+                    current_chunk += " " + sentence
+            
+            # Translate remaining chunk
+            if current_chunk.strip():
+                translated_chunk = self.translate_text(current_chunk.strip(), max_retries)
+                if translated_chunk:
+                    translated_chunks.append(translated_chunk)
+            
+            if translated_chunks:
+                final_translation = " ".join(translated_chunks)
+                self.error_handler.log_info(f"Successfully translated long text into {len(final_translation)} chars", "_translate_long_text")
+                return final_translation
+            else:
+                self.error_handler.log_warning("Failed to translate any chunks", "_translate_long_text")
+                return None
+                
+        except Exception as e:
+            self.error_handler.log_error(e, "_translate_long_text")
+            return None
+    
+    def _split_into_sentences(self, text: str) -> List[str]:
+        """Split text into sentences for better translation context"""
+        import re
+        
+        # Simple sentence splitting (can be improved with NLTK)
+        sentences = re.split(r'[.!?]+', text)
+        
+        # Clean up sentences
+        clean_sentences = []
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if sentence and len(sentence) > 10:  # Ignore very short fragments
+                clean_sentences.append(sentence)
+        
+        return clean_sentences
+    
+    @handle_exceptions("detect_language")
+    def detect_language(self, text: str) -> Optional[str]:
+        """Detect the language of given text"""
+        try:
+            if not text or not text.strip():
+                return None
+            
+            # Use first 1000 chars for detection
+            sample_text = text[:1000]
+            
+            result = self.translator.detect(sample_text)
+            if result and result.lang:
+                detected_lang = result.lang
+                confidence = getattr(result, 'confidence', 0)
+                
+                self.error_handler.log_info(f"Detected language: {detected_lang} (confidence: {confidence})", "detect_language")
+                return detected_lang
+            
+            return None
+            
+        except Exception as e:
+            self.error_handler.log_error(e, "detect_language")
+            return None
+    
+    @handle_exceptions("translate_article")
+    def translate_article(self, article: NewsArticle) -> NewsArticle:
+        """Translate both title and content of a news article"""
+        try:
+            self.error_handler.log_info(f"Translating article: {article.title[:50]}...", "translate_article")
+            
+            # Translate title
+            if article.title:
+                translated_title = self.translate_text(article.title)
+                if translated_title:
+                    article.translated_title = translated_title
+                    self.error_handler.log_info("Title translation successful", "translate_article")
+                else:
+                    self.error_handler.log_warning("Title translation failed", "translate_article")
+            
+            # Translate content
+            if article.full_content:
+                # Check if content is in English (or translate anyway)
+                detected_lang = self.detect_language(article.full_content)
+                
+                if detected_lang and detected_lang != TRANSLATION_CONFIG["target_language"]:
+                    translated_content = self.translate_text(article.full_content)
+                    if translated_content:
+                        article.translated_content = translated_content
+                        self.error_handler.log_info(f"Content translation successful ({len(translated_content)} chars)", "translate_article")
+                    else:
+                        self.error_handler.log_warning("Content translation failed", "translate_article")
+                else:
+                    self.error_handler.log_info("Content already in Tamil or language detection failed", "translate_article")
+            else:
+                self.error_handler.log_warning("No content to translate", "translate_article")
+            
+            return article
+            
+        except Exception as e:
+            self.error_handler.log_error(e, f"translate_article: {article.title}")
+            return article
+    
+    @handle_exceptions("translate_multiple_articles")
+    def translate_multiple_articles(self, articles: List[NewsArticle]) -> List[NewsArticle]:
+        """Translate multiple articles with progress tracking"""
+        translated_articles = []
+        total_articles = len(articles)
+        
+        try:
+            self.error_handler.log_info(f"Starting translation of {total_articles} articles", "translate_multiple_articles")
+            
+            for i, article in enumerate(articles, 1):
+                self.error_handler.log_info(f"Translating article {i}/{total_articles}", "translate_multiple_articles")
+                
+                # Translate the article
+                translated_article = self.translate_article(article)
+                translated_articles.append(translated_article)
+                
+                # Progress update
+                if i % 5 == 0:
+                    self.error_handler.log_info(f"Completed {i}/{total_articles} translations", "translate_multiple_articles")
+                
+                # Rate limiting delay
+                time.sleep(RATE_LIMIT_CONFIG["translation_delay"])
+            
+            successful_translations = sum(1 for a in translated_articles if a.translated_title or a.translated_content)
+            self.error_handler.log_info(f"Translation completed: {successful_translations}/{total_articles} successful", "translate_multiple_articles")
+            
+            return translated_articles
+            
+        except Exception as e:
+            self.error_handler.log_error(e, "translate_multiple_articles")
+            return translated_articles
+    
+    def get_translation_stats(self, articles: List[NewsArticle]) -> dict:
+        """Get translation statistics"""
+        stats = {
+            "total_articles": len(articles),
+            "titles_translated": sum(1 for a in articles if a.translated_title),
+            "content_translated": sum(1 for a in articles if a.translated_content),
+            "fully_translated": sum(1 for a in articles if a.translated_title and a.translated_content),
+            "cache_size": len(self.translation_cache)
+        }
+        
+        return stats
