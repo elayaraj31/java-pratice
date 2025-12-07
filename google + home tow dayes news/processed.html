@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Processed Articles{% endblock %}
+
+{% block content %}
+    <h1>Processed (AI) Articles</h1>
+    <p>These articles have been generated or translated by the AI Writer.</p>
+
+    <form method="GET" action="/processed" class="date-filter-form">
+        <label for="date_from">From:</label>
+        <input type="date" id="date_from" name="date_from" value="{{ date_from }}">
+        <label for="date_to">To:</label>
+        <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
+        <button type="submit">Filter</button>
+    </form>
+
+    <div class="article-grid">
+        {% for article in articles %}
+            <div class="article-card" data-article-id="{{ article.id }}">
+                
+                {% if article.ai_generated_video_path %}
+                    <img src="{{ url_for('static', filename=article.ai_generated_video_path.replace('static/', '')) }}" alt="AI Generated Video" style="width: 100%; height: 200px; object-fit: cover;">
+                {% elif article.ai_generated_image_path %}
+                    <img src="{{ url_for('static', filename=article.ai_generated_image_path.replace('static/', '')) }}" alt="AI Generated Image" style="width: 100%; height: 200px; object-fit: cover;">
+                {% endif %}
+                
+                <div class="article-card-content">
+                    <h2 class="article-title">{{ article.ai_title | default('Error: No Title') }}</h2>
+                    <p class="article-date">{{ article.publish_date | formatdate }}</p>
+                    <p class="article-snippet">
+                        {{ article.ai_content | safe | truncate(250) }}
+                    </p>
+                </div>
+                
+                <div class="article-card-footer">
+                    <a href="{{ article.original_url }}" class="link-icon" target="_blank" title="View Original Source">🔗</a>
+                    <button class="read-more-btn">Read More</button>
+                </div>
+
+                {% if article.ai_generated_audio_path %}
+                    <div class="audio-player-container" style="margin: 0 20px 20px 20px; border-radius: 12px;">
+                        <div class="visualizer-container">
+                            <div class="visualizer-icon">🎧</div>
+                            <div class="visualizer-bars">
+                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                                <div class="bar"></div><div class="bar"></div>
+                            </div>
+                        </div>
+                        <audio controls style="width: 100%;">
+                            <source src="{{ url_for('static', filename=article.ai_generated_audio_path.replace('static/', '')) }}" type="audio/mpeg">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                {% endif %}
+
+                <div class="hidden-text article-full-text-hidden">{{ article.ai_content | safe }}</div>
+            </div>
+        {% else %}
+            <div class="article">
+                <p>No processed articles found for the selected criteria.</p>
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}

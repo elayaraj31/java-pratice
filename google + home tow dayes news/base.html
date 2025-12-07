@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}My News App{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="navbar-main">
+        <div class="navbar-main-container">
+            <button id="main-nav-toggle" class="main-nav-toggle">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <div id="main-nav-links" style="display: flex; width: 100%; flex-wrap: wrap;">
+                <a href="/"><i class="fa-solid fa-house"></i> Home</a>
+                {% for cat in CATEGORIES %}
+                    <a href="/category/{{ cat }}"><i class="{{ CATEGORY_ICONS.get(cat, 'fa-solid fa-tag') }}"></i> {{ cat }}</a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="navbar-sub">
+        <div class="hamburger-wrapper" id="hamburger-menu-button">
+            <div class="hamburger-icon">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+        
+        <div class="navbar-right" id="navbar-sub-right"> 
+            <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Dark Mode">
+                <i id="theme-icon" class="fa-solid fa-moon"></i>
+            </button>
+
+            <div class="navbar-text">
+                <span>Total Articles</span>
+                <span style="font-weight: 800;">{{ article_count }}</span>
+            </div>
+            
+            <div class="inline-credits">
+                <span class="inline-credits-label">Voice Usage:</span>
+                <div class="inline-progress-bar-container">
+                    <div id="voice-usage-bar" class="inline-progress-bar-fill" style="width: 0%;"></div>
+                </div>
+                <span id="voice-usage-text" class="inline-credits-text">0%</span>
+            </div>
+
+            <div class="navbar-language-select">
+                <select id="global-language-select" class="language-select" title="Select AI Language">
+                    {% for code, name in LANGUAGES.items() %}
+                        <option value="{{ code }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="navbar-voice-select">
+                <select id="global-voice-select" class="language-select" title="Select AI Voice">
+                    {% for name, voice_id in VOICES.items() %}
+                        <option value="{{ voice_id }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="navbar-state-select">
+                <select id="global-state-select" class="language-select" title="Select State">
+                    {% for value, name in STATES.items() %}
+                        <option value="{{ value }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="dropdown dropdown-right">
+                <button class="dropbtn">All Articles</button>
+                <div class="dropdown-content">
+                    <a href="/unprocessed">All Unprocessed</a>
+                    <a href="/processed">All Processed (AI)</a>
+                </div>
+            </div> 
+            
+            <div class="search-container">
+                <form action="/search" method="GET">
+                    <input type="text" placeholder="Search..." name="query">
+                    <button type="submit">Go</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+    
+    <div id="articleModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close article-modal-close">&times;</span>
+            <h2 id="articleModalTitle" class="article-title"></h2>
+            <p id="articleModalDate" class="article-date"></p>
+            <div id="articleModalText" class="modal-body article-text"></div>
+            </div>
+    </div>
+
+    <div id="aiModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close ai-modal-close">&times;</span>
+            <h2 class="article-title">AI Generated Content</h2>
+            
+            <div id="aiModalBody" class="modal-body">
+                <div id="aiModalLoader" style="display: none;">
+                    <div class="skeleton-img" style="width: 100%; height: 300px; margin-bottom: 20px; border-radius: 8px;"></div>
+                    <div class="skeleton-title" style="width: 80%; height: 32px; margin-bottom: 20px;"></div>
+                    <div class="skeleton-text" style="width: 100%; height: 16px; margin-bottom: 10px;"></div>
+                    <div class="skeleton-text" style="width: 95%; height: 16px; margin-bottom: 10px;"></div>
+                    <div class="skeleton-text" style="width: 98%; height: 16px; margin-bottom: 10px;"></div>
+                    <div class="skeleton-text" style="width: 90%; height: 16px; margin-bottom: 10px;"></div>
+                    <p style="text-align: center; color: var(--text-light); margin-top: 20px; font-style: italic;">AI is writing the story and generating an image...</p>
+                </div>
+
+                <img id="aiModalImage" src="" alt="AI Generated Image" />
+                <p id="aiModalText" style="display: none;"></p>
+                
+                <div id="aiModalAudioSection" style="display: none; margin-top: 20px;">
+                    
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <button id="aiModalVoiceBtn" class="ai-writer-btn">🔊 Generate Voice</button>
+                        <button id="aiModalVideoBtn" class="ai-writer-btn" style="background-color: var(--secondary-color); color: #000;">🎬 Generate Video</button>
+                    </div>
+
+                    <div id="aiModalVoiceLoader" style="display: none; margin: 10px 0;">
+                        <div class="modal-loader" style="margin: 10px auto; width: 20px; height: 20px;"></div>
+                        <p id="loaderText" style="text-align: center;"><i>Generating voice...</i></p>
+                    </div>
+                    <div id="aiModalAudioPlayerContainer" style="margin-top: 15px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+            // --- Main Nav Logic ---
+            const mainNavToggle = document.getElementById('main-nav-toggle');
+            const mainNavLinks = document.getElementById('main-nav-links');
+            function checkScreenSize() {
+                if (window.innerWidth > 900) {
+                    mainNavLinks.style.display = 'flex';
+                    mainNavLinks.classList.remove('active');
+                } else {
+                    if (!mainNavLinks.classList.contains('active')) mainNavLinks.style.display = 'none';
+                }
+            }
+            checkScreenSize();
+            window.addEventListener('resize', checkScreenSize);
+            if (mainNavToggle) {
+                mainNavToggle.addEventListener('click', function() {
+                    const isActive = mainNavLinks.classList.toggle('active');
+                    mainNavLinks.style.display = isActive ? 'flex' : 'none';
+                    const icon = this.querySelector('i');
+                    if (isActive) { icon.classList.remove('fa-bars'); icon.classList.add('fa-times'); } 
+                    else { icon.classList.remove('fa-times'); icon.classList.add('fa-bars'); }
+                });
+            }
+
+            // --- Sub-Navbar Hamburger ---
+            const hamburgerBtn = document.getElementById("hamburger-menu-button");
+            const navSubRight = document.getElementById("navbar-sub-right");
+            if (hamburgerBtn && navSubRight) {
+                hamburgerBtn.addEventListener('click', function(event) {
+                    event.stopPropagation(); 
+                    this.classList.toggle('open');
+                    navSubRight.classList.toggle('active');
+                });
+                window.addEventListener('click', function(event) {
+                    if (navSubRight.classList.contains('active')) {
+                        if (!navSubRight.contains(event.target) && !hamburgerBtn.contains(event.target)) {
+                            navSubRight.classList.remove('active');
+                            hamburgerBtn.classList.remove('open');
+                        }
+                    }
+                    if (event.target == articleModal) articleModal.style.display = "none";
+                    if (event.target == aiModal) aiModal.style.display = "none";
+                });
+            }
+
+            // --- Dark Mode ---
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            const themeIcon = document.getElementById('theme-icon');
+            const currentTheme = localStorage.getItem('theme');
+            if (currentTheme) {
+                document.documentElement.setAttribute('data-theme', currentTheme);
+                if (currentTheme === 'dark') { themeIcon.classList.remove('fa-moon'); themeIcon.classList.add('fa-sun'); }
+            }
+            themeToggleBtn.addEventListener('click', () => {
+                let theme = document.documentElement.getAttribute('data-theme');
+                if (theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    localStorage.setItem('theme', 'light');
+                    themeIcon.classList.remove('fa-sun'); themeIcon.classList.add('fa-moon');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                    themeIcon.classList.remove('fa-moon'); themeIcon.classList.add('fa-sun');
+                }
+            });
+
+            // --- Modal & AI Logic ---
+            const articleModal = document.getElementById("articleModal");
+            const articleModalClose = document.querySelector(".article-modal-close");
+            const articleModalTitle = document.getElementById("articleModalTitle");
+            const articleModalDate = document.getElementById("articleModalDate");
+            const articleModalText = document.getElementById("articleModalText");
+            const aiModal = document.getElementById("aiModal");
+            const aiModalClose = document.querySelector(".ai-modal-close");
+            const aiModalLoader = document.getElementById("aiModalLoader");
+            const aiModalText = document.getElementById("aiModalText");
+            const aiModalImage = document.getElementById("aiModalImage");
+            const aiModalAudioSection = document.getElementById("aiModalAudioSection");
+            const aiModalVoiceBtn = document.getElementById("aiModalVoiceBtn");
+            const aiModalVideoBtn = document.getElementById("aiModalVideoBtn");
+            const aiModalVoiceLoader = document.getElementById("aiModalVoiceLoader");
+            const loaderText = document.getElementById("loaderText");
+            const aiModalAudioPlayerContainer = document.getElementById("aiModalAudioPlayerContainer");
+
+            // --- Usage Bar Logic ---
+            function updateUsageDisplay(percentage) {
+                const usageBar = document.getElementById('voice-usage-bar');
+                const usageText = document.getElementById('voice-usage-text');
+                let percent = parseFloat(percentage);
+                if (isNaN(percent)) percent = 0;
+                let displayPercent = percent > 100 ? 100 : percent;
+                if (usageBar) {
+                    usageBar.style.width = `${displayPercent.toFixed(0)}%`;
+                    usageBar.style.backgroundColor = percent >= 100 ? '#ef4444' : 'var(--primary-color)';
+                }
+                if (usageText) { usageText.textContent = percent >= 100 ? `100% (Max)` : `${displayPercent.toFixed(0)}%`; }
+            }
+            let initialUsage = localStorage.getItem('voiceUsagePercent') || 0;
+            updateUsageDisplay(initialUsage);
+
+            articleModalClose.onclick = () => { articleModal.style.display = "none"; }
+            aiModalClose.onclick = () => { aiModal.style.display = "none"; }
+            
+            document.body.addEventListener('click', function(event) {
+                if (event.target.classList.contains('read-more-btn')) {
+                    const card = event.target.closest('.article-card, .article');
+                    if (!card) return;
+                    const title = card.querySelector('.article-title').textContent;
+                    const date = card.querySelector('.article-date').textContent;
+                    const fullText = card.querySelector('.article-full-text-hidden').innerHTML;
+                    articleModalTitle.textContent = title;
+                    articleModalDate.textContent = date;
+                    articleModalText.innerHTML = fullText;
+                    articleModal.style.display = "block";
+                }
+                if (event.target.classList.contains('ai-writer-btn')) {
+                    const card = event.target.closest('.article-card, .article');
+                    if (!card) return;
+                    const articleId = card.dataset.articleId;
+                    const title = card.querySelector('.article-title').textContent;
+                    const textEl = card.querySelector('.article-full-text-hidden-original, .article-full-text-hidden');
+                    const text = textEl.textContent;
+                    const targetLang = document.getElementById('global-language-select').value;
+                    
+                    aiModalText.style.display = "none"; aiModalImage.style.display = "none"; aiModalImage.src = ""; aiModalAudioSection.style.display = "none"; 
+                    aiModalLoader.style.display = "block"; 
+                    aiModal.style.display = "block";
+                    
+                    fetch('/api/ai-writer', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ article_id: articleId, title: title, text: text, target_lang: targetLang })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        aiModalLoader.style.display = "none";
+                        let processedText = "No text generated.";
+                        if (data.image_path) { aiModalImage.src = `/${data.image_path}`; aiModalImage.style.display = "block"; } else { aiModalImage.style.display = "none"; }
+                        if (data.ai_text) {
+                            processedText = data.ai_text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+                            aiModal.dataset.articleId = articleId;
+                            aiModal.dataset.aiText = data.ai_text; 
+                            aiModalAudioPlayerContainer.innerHTML = ""; 
+                            aiModalVoiceBtn.disabled = false; aiModalVoiceBtn.style.display = "block"; 
+                            aiModalVideoBtn.style.display = "block"; 
+                            aiModalVoiceLoader.style.display = "none"; aiModalAudioSection.style.display = "block";
+                        } else if (data.error) {
+                            processedText = `An error occurred: ${data.error}`;
+                            aiModalAudioSection.style.display = "none";
+                        }
+                        aiModalText.innerHTML = processedText;
+                        aiModalText.style.display = "block";
+                        card.style.transition = 'opacity 0.5s, transform 0.5s'; card.style.opacity = '0'; card.style.transform = 'scale(0.95)'; setTimeout(() => card.remove(), 500);
+                    })
+                    .catch(error => {
+                        aiModalLoader.style.display = "none";
+                        aiModalText.textContent = `An error occurred: ${error.error || 'Unknown error'}`;
+                        aiModalText.style.display = "block";
+                    });
+                }
+            });
+
+            // --- FUNCTION TO RENDER AUDIO PLAYER ---
+            function renderAudioPlayer(audioPath, scriptText) {
+                aiModalAudioPlayerContainer.innerHTML = `
+                    <div class="audio-player-container">
+                        <div class="visualizer-container"><div class="visualizer-icon">🎧</div><div class="visualizer-bars"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div></div>
+                        <audio controls style="width: 100%;" autoplay><source src="/${audioPath}" type="audio/mpeg">Your browser does not support the audio element.</audio>
+                        <p style="font-size: 0.9em; font-style: italic; margin-top: 10px; color: var(--text-light);">Audio Script: "${scriptText}"</p>
+                    </div>
+                `;
+            }
+
+            // --- GENERATE VOICE ONLY ---
+            aiModalVoiceBtn.addEventListener('click', function() {
+                const articleId = aiModal.dataset.articleId;
+                const aiText = aiModal.dataset.aiText;
+                const targetLang = document.getElementById('global-language-select').value;
+                const voiceId = document.getElementById('global-voice-select').value;
+                
+                // --- RESET CHECK (POP-UP LOGIC) ---
+                let currentUsageOnCheck = parseFloat(localStorage.getItem('voiceUsagePercent') || 0);
+                if (currentUsageOnCheck >= 100) { 
+                    let confirmReset = confirm("Voice Usage limit reached (100%). Do you want to reset usage to 0% and continue?");
+                    if (confirmReset) {
+                        localStorage.setItem('voiceUsagePercent', 0);
+                        updateUsageDisplay(0);
+                        alert("Usage has been reset! Please click 'Generate Voice' again.");
+                    }
+                    return; 
+                }
+                // ----------------------------------
+
+                aiModalVoiceBtn.style.display = "none"; 
+                aiModalVideoBtn.style.display = "none";
+                aiModalVoiceLoader.style.display = "block"; 
+                loaderText.innerText = "Generating Voice...";
+                aiModalAudioPlayerContainer.innerHTML = ""; 
+
+                fetch('/api/generate-voice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ article_id: articleId, ai_text: aiText, target_lang: targetLang, voice_id: voiceId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    aiModalVoiceLoader.style.display = "none"; 
+                    aiModalVideoBtn.style.display = "block"; 
+                    if (data.error) { aiModalAudioPlayerContainer.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`; aiModalVoiceBtn.style.display = "block"; } 
+                    else if (data.audio_path) {
+                        renderAudioPlayer(data.audio_path, data.deep_summary_text);
+                        let currentUsage = parseFloat(localStorage.getItem('voiceUsagePercent') || 0);
+                        let newUsage = currentUsage + 6;
+                        localStorage.setItem('voiceUsagePercent', newUsage);
+                        updateUsageDisplay(newUsage);
+                    }
+                })
+                .catch(error => { aiModalVoiceLoader.style.display = "none"; aiModalAudioPlayerContainer.innerHTML = `<p style="color: red;">Fetch Error: ${error}</p>`; aiModalVoiceBtn.style.display = "block"; });
+            });
+
+            // --- GENERATE VIDEO (GIF + AUDIO) ---
+            aiModalVideoBtn.addEventListener('click', async function() {
+                const articleId = aiModal.dataset.articleId;
+                const aiText = aiModal.dataset.aiText;
+                const targetLang = document.getElementById('global-language-select').value;
+                const voiceId = document.getElementById('global-voice-select').value;
+
+                // --- RESET CHECK (POP-UP LOGIC) ---
+                let currentUsageOnCheck = parseFloat(localStorage.getItem('voiceUsagePercent') || 0);
+                if (currentUsageOnCheck >= 100) { 
+                    let confirmReset = confirm("Voice Usage limit reached (100%). Do you want to reset usage to 0% and continue?");
+                    if (confirmReset) {
+                        localStorage.setItem('voiceUsagePercent', 0);
+                        updateUsageDisplay(0);
+                        alert("Usage has been reset! Please click 'Generate Video' again.");
+                    }
+                    return; 
+                }
+                // ----------------------------------
+
+                aiModalVoiceBtn.style.display = "none";
+                aiModalVideoBtn.style.display = "none";
+                aiModalVoiceLoader.style.display = "block";
+                
+                try {
+                    // 1. Generate Voice First
+                    loaderText.innerText = "Generating Voice & Video...";
+                    
+                    const voiceReq = fetch('/api/generate-voice', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ article_id: articleId, ai_text: aiText, target_lang: targetLang, voice_id: voiceId })
+                    });
+                    
+                    const videoReq = fetch('/api/generate-video', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ article_id: articleId })
+                    });
+
+                    const [voiceRes, videoRes] = await Promise.all([voiceReq, videoReq]);
+                    const voiceData = await voiceRes.json();
+                    const videoData = await videoRes.json();
+
+                    aiModalVoiceLoader.style.display = "none";
+
+                    // Handle Audio Result
+                    if (voiceData.audio_path) {
+                        renderAudioPlayer(voiceData.audio_path, voiceData.deep_summary_text);
+                        let currentUsage = parseFloat(localStorage.getItem('voiceUsagePercent') || 0);
+                        let newUsage = currentUsage + 6;
+                        localStorage.setItem('voiceUsagePercent', newUsage);
+                        updateUsageDisplay(newUsage);
+                    } else {
+                        aiModalAudioPlayerContainer.innerHTML += `<p style="color: red;">Voice Error: ${voiceData.error}</p>`;
+                    }
+
+                    // Handle Video (GIF) Result
+                    if (videoData.video_path) {
+                        aiModalImage.src = `/${videoData.video_path}`; // Switch Image to GIF
+                    } else {
+                        alert("Could not generate video: " + (videoData.error || "Unknown Error"));
+                    }
+
+                } catch (err) {
+                    aiModalVoiceLoader.style.display = "none";
+                    aiModalVideoBtn.style.display = "block";
+                    alert("Error: " + err);
+                }
+            });
+
+            const stateSelectDropdown = document.getElementById('global-state-select');
+            if (stateSelectDropdown) {
+                stateSelectDropdown.addEventListener('change', function() {
+                    const selectedState = this.value;
+                    if (selectedState) window.location.href = `/search?query=${encodeURIComponent(selectedState)}`;
+                });
+            }
+        });
+    </script>
+    </body>
+</html>
